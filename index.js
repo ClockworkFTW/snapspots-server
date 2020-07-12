@@ -8,8 +8,10 @@ const cors = require("cors");
 app.use(bodyParser.json());
 app.use(cors());
 
-const spots = require("./routes/spots");
+const users = require("./routes/users");
+app.use("/users", users);
 
+const spots = require("./routes/spots");
 app.use("/spots", spots);
 
 app.listen(port, () =>

@@ -5,9 +5,7 @@ const flickr = require("../services/flickr");
 
 router.get("/:place_id", async (req, res) => {
   try {
-    const { place_id } = req.params;
-
-    const location = await google.geocode(place_id);
+    const location = await google.geocode(req.params.place_id);
 
     const POI = await google.getPOI(location);
 
