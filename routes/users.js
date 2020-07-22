@@ -4,21 +4,34 @@ const pool = require("../models/pool");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 
+const jwtSecret = process.env.JWT_SECRET;
+
 router.post("/sign-up", async (req, res) => {
   try {
-    const { username, password, email } = req.body;
+    const { username, passwordOne, passwordTwo, email } = req.body;
+
+    if (passwordOne !== passwordTwo) {
+      return res.status(400).json("Passwords must match");
+    }
+
+    const password = await bcrypt.hash(passwordOne, 10);
     const created_on = new Date();
-    const hashedPassword = await bcrypt.hash(password, 10);
 
     const text =
       "INSERT INTO account (username, password, email, created_on) VALUES ($1, $2, $3, $4) RETURNING *";
-    const values = [username, hashedPassword, email, created_on];
+    const values = [username, password, email, created_on];
 
     const { rows } = await pool.query(text, values);
 
-    res.status(200).json(rows[0]);
+    const token = jwt.sign(rows[0], jwtSecret);
+
+    res.status(200).json(token);
   } catch (error) {
-    res.status(400).json({ error });
+    const message =
+      error.code === "23505"
+        ? "Username already exists"
+        : "Something went wrong";
+    res.status(400).json(message);
   }
 });
 
@@ -38,12 +51,14 @@ router.post("/sign-in", async (req, res) => {
     }
 
     if (!pass) {
-      return res.status(401).json({ error: "invalid username or password" });
+      return res.status(400).json("Invalid username or password");
     }
 
-    res.status(200).json(rows[0]);
+    const token = jwt.sign(rows[0], jwtSecret);
+
+    res.status(200).json(token);
   } catch (error) {
-    res.status(400).json({ error });
+    res.status(400).json("Something went wrong");
   }
 });
 

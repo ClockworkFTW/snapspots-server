@@ -48,4 +48,13 @@ router.get("/:place_id", async (req, res) => {
   }
 });
 
+router.post("/", async (req, res) => {
+  try {
+    console.log(req.body);
+    res.status(200).end();
+  } catch (error) {
+    res.status(400).json({ error });
+  }
+});
+
 module.exports = router;
