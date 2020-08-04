@@ -18,7 +18,7 @@ router.post("/sign-up", async (req, res) => {
     const created_on = new Date();
 
     const text =
-      "INSERT INTO account (username, password, email, created_on) VALUES ($1, $2, $3, $4) RETURNING *";
+      "INSERT INTO accounts (username, password, email, created_on) VALUES ($1, $2, $3, $4) RETURNING *";
     const values = [username, password, email, created_on];
 
     const { rows } = await pool.query(text, values);
@@ -39,7 +39,7 @@ router.post("/sign-in", async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    const text = "SELECT * FROM account WHERE username = $1";
+    const text = "SELECT * FROM accounts WHERE username = $1";
     const values = [username];
 
     const { rows } = await pool.query(text, values);
