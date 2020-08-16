@@ -4,9 +4,10 @@ const baseURL = "https://www.flickr.com/services/rest";
 const api_key = process.env.FLICKR_API_KEY;
 const format = "format=json&nojsoncallback=1";
 
-const getPhotos = async (text, { lat, lng }) => {
+const getPhotos = async (name, { lat, lng }) => {
   const method = "flickr.photos.search";
 
+  const text = encodeURI(name);
   const sort = "relevance";
   const per_page = "10";
 
@@ -17,10 +18,12 @@ const getPhotos = async (text, { lat, lng }) => {
 
     return response.data.photos.photo.map((photo) => {
       const src = `https://farm${photo.farm}.staticflickr.com/${photo.server}/${photo.id}_${photo.secret}.jpg`;
-      return { ...photo, src };
+      // return { ...photo, src };
+      return src;
     });
   } catch (error) {
-    console.log(error);
+    console.log("FLICKR 'get photos' ERROR:", error.message);
+    return null;
   }
 };
 
@@ -33,7 +36,7 @@ const getInfo = async (photo_id) => {
     );
     return response.data.photo;
   } catch (error) {
-    console.log(error);
+    console.log("FLICKR 'get info' ERROR:", error.message);
   }
 };
 
