@@ -9,13 +9,7 @@ const api = "https://en.wikipedia.org/api/rest_v1";
 
 const getExtract = async (name) => {
   const endpoint = "page/summary";
-  const title = encodeURI(
-    name
-      .toLowerCase()
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join("_")
-  );
+  const title = encodeURI(name);
 
   try {
     const result = await axios.get(`${cors}/${api}/${endpoint}/${title}`);
