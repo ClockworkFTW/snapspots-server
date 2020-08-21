@@ -17,8 +17,7 @@ const getPhotos = async (name, { lat, lng }) => {
     );
 
     return response.data.photos.photo.map((photo) => {
-      const src = `https://farm${photo.farm}.staticflickr.com/${photo.server}/${photo.id}_${photo.secret}.jpg`;
-      // return { ...photo, src };
+      const src = `https://farm${photo.farm}.staticflickr.com/${photo.server}/${photo.id}_${photo.secret}_b.jpg`;
       return src;
     });
   } catch (error) {

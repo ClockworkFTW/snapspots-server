@@ -7,20 +7,22 @@ const flickr = require("../services/flickr");
 const weather = require("../services/weather");
 const wikipedia = require("../services/wikipedia");
 
-const config = require("../config");
-
 const getSpot = async (id) => {
+  // Get spot
   let spot = await pool.query("SELECT * FROM spots WHERE spot_id = $1", [id]);
   spot = spot.rows[0];
 
-  const forecast = await weather.getForecast(spot.coords);
-
+  // Join reviews
   let reviews = await pool.query(
     "SELECT accounts.account_id, accounts.username, reviews.review_id, reviews.rating, reviews.comment, reviews.visited_on FROM accounts INNER JOIN reviews ON accounts.account_id = reviews.account_id WHERE reviews.spot_id = $1",
     [id]
   );
   reviews = reviews.rows;
 
+  // Get forecast
+  const forecast = await weather.getForecast(spot.coordinates);
+
+  // Return updated spot
   return { ...spot, reviews, forecast };
 };
 
@@ -32,61 +34,38 @@ router.get("/:id", async (req, res) => {
 
     res.status(200).json(spot);
   } catch (error) {
-    res.status(400).json({ error });
+    res.status(400).json({ error: error.message });
   }
 });
 
 router.get("/all/:place_id", async (req, res) => {
   try {
     // get area coordinates based off place id
-    const location = await google.geocode(req.params.place_id);
+    const area = await google.geocode(req.params.place_id);
+    // prettier-ignore
+    const { geometry: { location }, formatted_address} = area;
 
     // get nearby places of interest
-    let POI = await google.getPOI(
-      location.formatted_address,
-      location.geometry.location
-    );
+    const POI = await google.getPOI(formatted_address, location);
 
-    // filter out unwanted place types
-    POI = POI.filter(
-      (place) =>
-        !place.types.some((type) => config.excluded_place_types.includes(type))
-    );
-
-    // convert POI to geoJSON
-    let geoJSON = await Promise.all(
-      POI.map(async (place) => {
+    // convert POI to geoJSON format
+    const geoJSON = await Promise.all(
+      POI.map(async ({ place_id, name, geometry: { location } }) => {
         // get additional properties
-        let description = await wikipedia.getExtract(place.name);
-        let reviews = await google.getReviews(place.place_id);
-        let photos = await flickr.getPhotos(
-          place.name,
-          place.geometry.location
-        );
-
-        // photos = await Promise.all(
-        //   photos.map(async (photo) => {
-        //     const info = await flickr.getInfo(photo.id);
-
-        //     return { ...photo, ...info };
-        //   })
-        // );
+        let description = await wikipedia.getExtract(name);
+        let photos = await flickr.getPhotos(name, location);
 
         // return formatted object
         return {
           type: "Feature",
           geometry: {
             type: "Point",
-            coordinates: [
-              place.geometry.location.lng,
-              place.geometry.location.lat,
-            ],
+            coordinates: [location.lng, location.lat],
           },
           properties: {
-            id: place.place_id,
-            name: place.name,
-            vicinity: location.formatted_address,
-            reviews,
+            place_id,
+            name,
+            formatted_address,
             description,
             photos,
           },
@@ -94,28 +73,48 @@ router.get("/all/:place_id", async (req, res) => {
       })
     );
 
-    geoJSON = geoJSON.filter((place) => place.properties.photos.length !== 0);
+    // Filter out places without photos
+    const places = {
+      coords: [location.lng, location.lat],
+      geoJSON: geoJSON.filter((place) => place.properties.photos.length !== 0),
+    };
 
-    res.status(200).json({
-      coords: [location.geometry.location.lng, location.geometry.location.lat],
-      geoJSON,
-    });
+    res.status(200).json(places);
   } catch (error) {
-    res.status(400).json({ error });
+    res.status(400).json({ error: error.message });
   }
 });
 
 router.post("/", async (req, res) => {
   try {
-    // create array from request body and append timestamp
-    let spot = [...Object.values(req.body), new Date()];
+    // Extract spot data from request body and append timestamp
+    const { custom, ...data } = req.body;
+    const dataArr = [...Object.values(data), new Date()];
 
-    const { rows } = await pool.query(
-      "INSERT INTO spots (account_id, name, description, keywords, type, equipment, time, photos, coords, created_on) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *",
-      spot
-    );
+    let newSpot;
 
-    res.status(200).json({ ...rows[0], reviews: [] });
+    // Create a custom spot
+    if (custom) {
+      const { rows } = await pool.query(
+        "INSERT INTO spots (account_id, name, description, keywords, type, equipment, time, photos, coordinates, created_on) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *",
+        dataArr
+      );
+      newSpot = rows[0];
+    }
+    // Create a "discovered" spot
+    else {
+      console.log(data);
+      const { rows } = await pool.query(
+        "INSERT INTO spots (place_id, name, formatted_address, description, photos, coordinates, created_on) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+        dataArr
+      );
+      newSpot = rows[0];
+    }
+
+    // Get forecast
+    const forecast = await weather.getForecast(data.coordinates);
+
+    res.status(200).json({ ...newSpot, forecast, reviews: [] });
     res.end();
   } catch (error) {
     res.status(400).json({ error });
