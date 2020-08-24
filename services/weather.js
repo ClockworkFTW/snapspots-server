@@ -8,7 +8,7 @@ const cors = "http://localhost:8080";
 const api = "api.openweathermap.org/data/2.5";
 const key = process.env.WEATHER_API_KEY;
 
-const getForecast = async ([lon, lat]) => {
+const getForecast = async (lat, lon) => {
   const endpoint = "onecall";
 
   try {

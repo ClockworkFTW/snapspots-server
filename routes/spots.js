@@ -20,7 +20,8 @@ const getSpot = async (id) => {
   reviews = reviews.rows;
 
   // Get forecast
-  const forecast = await weather.getForecast(spot.coordinates);
+  const { latitude, longitude } = spot;
+  const forecast = await weather.getForecast(latitude, longitude);
 
   // Return updated spot
   return { ...spot, reviews, forecast };
@@ -40,16 +41,41 @@ router.get("/:id", async (req, res) => {
 
 router.get("/all/:place_id", async (req, res) => {
   try {
-    // get area coordinates based off place id
+    // get search area coordinates based off google place id
     const area = await google.geocode(req.params.place_id);
     // prettier-ignore
-    const { geometry: { location }, formatted_address} = area;
+    const { geometry: { location: {lat, lng} }, formatted_address} = area;
 
-    // get nearby places of interest
-    const POI = await google.getPOI(formatted_address, location);
+    // get custom spots within 50,000 meter radius
+    const r = 0.45045;
+    const bounds = [lat + r, lat - r, lng + r, lng - r];
 
-    // convert POI to geoJSON format
-    const geoJSON = await Promise.all(
+    let customSpots = await pool.query(
+      "SELECT * FROM spots WHERE (latitude <= $1 AND latitude >= $2 AND longitude <= $3 AND longitude >= $4)",
+      bounds
+    );
+
+    // Convert custom spots to geoJSON format
+    customSpots = customSpots.rows.map((spot) => {
+      // Destructure properties
+      const { lat, lng, ...properties } = spot;
+
+      // Return formatted object
+      return {
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [lng, lat],
+        },
+        properties,
+      };
+    });
+
+    // Get places of interest within 50,000 meters
+    const POI = await google.getPOI(formatted_address, { lat, lng });
+
+    // Convert discovered spots to geoJSON format
+    let discoveredSpots = await Promise.all(
       POI.map(async ({ place_id, name, geometry: { location } }) => {
         // get additional properties
         let description = await wikipedia.getExtract(name);
@@ -73,13 +99,29 @@ router.get("/all/:place_id", async (req, res) => {
       })
     );
 
-    // Filter out places without photos
-    const places = {
-      coords: [location.lng, location.lat],
-      geoJSON: geoJSON.filter((place) => place.properties.photos.length !== 0),
+    // Filter out discovered spots without photos and duplicate custom spots
+    discoveredSpots = discoveredSpots.filter((discoveredSpot) => {
+      const hasPhotos = discoveredSpot.properties.photos.length !== 0;
+      let duplicate = false;
+
+      customSpots.forEach((customSpot) => {
+        if (
+          discoveredSpot.properties.place_id === customSpot.properties.place_id
+        ) {
+          duplicate = true;
+        }
+      });
+
+      return hasPhotos && !duplicate ? true : false;
+    });
+
+    // Merge spots
+    const spots = {
+      coords: [lng, lat],
+      geoJSON: [...customSpots, ...discoveredSpots],
     };
 
-    res.status(200).json(places);
+    res.status(200).json(spots);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -96,23 +138,23 @@ router.post("/", async (req, res) => {
     // Create a custom spot
     if (custom) {
       const { rows } = await pool.query(
-        "INSERT INTO spots (account_id, name, description, keywords, type, equipment, time, photos, coordinates, created_on) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *",
+        "INSERT INTO spots (account_id, name, description, keywords, type, equipment, time, photos, latitude, longitude, created_on) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *",
         dataArr
       );
       newSpot = rows[0];
     }
-    // Create a "discovered" spot
+    // Discover a spot
     else {
-      console.log(data);
       const { rows } = await pool.query(
-        "INSERT INTO spots (place_id, name, formatted_address, description, photos, coordinates, created_on) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+        "INSERT INTO spots (place_id, name, formatted_address, description, photos, latitude, longitude, created_on) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
         dataArr
       );
       newSpot = rows[0];
     }
 
     // Get forecast
-    const forecast = await weather.getForecast(data.coordinates);
+    const { latitude, longitude } = data;
+    const forecast = await weather.getForecast(latitude, longitude);
 
     res.status(200).json({ ...newSpot, forecast, reviews: [] });
     res.end();
