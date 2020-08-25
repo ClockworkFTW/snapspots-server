@@ -20,6 +20,18 @@ const geocode = async (place_id) => {
   }
 };
 
+const reverseGeocode = async (latlng) => {
+  const endpoint = "geocode/json";
+
+  const url = `${cors}/${api}/${endpoint}?key=${key}&latlng=${latlng}`;
+  try {
+    const response = await axios.get(url);
+    return response.data.results[0];
+  } catch (error) {
+    console.log("GOOGLE 'geocode' ERROR:", error.message);
+  }
+};
+
 const getPOI = async (name, { lat, lng }) => {
   const endpoint = "place/nearbysearch/json";
 
@@ -51,4 +63,4 @@ const getReviews = async (place_id) => {
   }
 };
 
-module.exports = { geocode, getPOI, getReviews };
+module.exports = { geocode, reverseGeocode, getPOI, getReviews };

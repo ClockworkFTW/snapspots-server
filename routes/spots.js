@@ -20,11 +20,18 @@ const getSpot = async (id) => {
   reviews = reviews.rows;
 
   // Get forecast
-  const { latitude, longitude } = spot;
+  const { latitude, longitude, ...properties } = spot;
   const forecast = await weather.getForecast(latitude, longitude);
 
-  // Return updated spot
-  return { ...spot, reviews, forecast };
+  // Return formatted spot
+  return {
+    type: "Feature",
+    geometry: {
+      type: "Point",
+      coordinates: [longitude, latitude],
+    },
+    properties: { ...properties, reviews, forecast },
+  };
 };
 
 router.get("/:id", async (req, res) => {
@@ -56,20 +63,29 @@ router.get("/all/:place_id", async (req, res) => {
     );
 
     // Convert custom spots to geoJSON format
-    customSpots = customSpots.rows.map((spot) => {
-      // Destructure properties
-      const { lat, lng, ...properties } = spot;
+    customSpots = await Promise.all(
+      customSpots.rows.map(async (spot) => {
+        // Destructure properties
+        const { lat, lng, ...properties } = spot;
 
-      // Return formatted object
-      return {
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [lng, lat],
-        },
-        properties,
-      };
-    });
+        // Join reviews
+        let reviews = await pool.query(
+          "SELECT accounts.account_id, accounts.username, reviews.review_id, reviews.rating, reviews.comment, reviews.visited_on FROM accounts INNER JOIN reviews ON accounts.account_id = reviews.account_id WHERE reviews.spot_id = $1",
+          [properties.spot_id]
+        );
+        reviews = reviews.rows;
+
+        // Return formatted spot
+        return {
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [lng, lat],
+          },
+          properties: { ...properties, reviews },
+        };
+      })
+    );
 
     // Get places of interest within 50,000 meters
     const POI = await google.getPOI(formatted_address, { lat, lng });
@@ -81,7 +97,7 @@ router.get("/all/:place_id", async (req, res) => {
         let description = await wikipedia.getExtract(name);
         let photos = await flickr.getPhotos(name, location);
 
-        // return formatted object
+        // return formatted spot
         return {
           type: "Feature",
           geometry: {
@@ -131,14 +147,19 @@ router.post("/", async (req, res) => {
   try {
     // Extract spot data from request body and append timestamp
     const { custom, ...data } = req.body;
+    const { latitude, longitude } = data;
     const dataArr = [...Object.values(data), new Date()];
 
     let newSpot;
 
     // Create a custom spot
     if (custom) {
+      const { formatted_address } = await google.reverseGeocode(
+        `${latitude},${longitude}`
+      );
+      dataArr.splice(2, 0, formatted_address);
       const { rows } = await pool.query(
-        "INSERT INTO spots (account_id, name, description, keywords, type, equipment, time, photos, latitude, longitude, created_on) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *",
+        "INSERT INTO spots (account_id, name, formatted_address, description, keywords, type, equipment, time, photos, latitude, longitude, created_on) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *",
         dataArr
       );
       newSpot = rows[0];
@@ -153,10 +174,18 @@ router.post("/", async (req, res) => {
     }
 
     // Get forecast
-    const { latitude, longitude } = data;
     const forecast = await weather.getForecast(latitude, longitude);
 
-    res.status(200).json({ ...newSpot, forecast, reviews: [] });
+    newSpot = {
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [longitude, latitude],
+      },
+      properties: { ...newSpot, reviews: [], forecast },
+    };
+
+    res.status(200).json(newSpot);
     res.end();
   } catch (error) {
     res.status(400).json({ error });
