@@ -14,7 +14,28 @@ const geocode = async (place_id) => {
   const url = `${cors}/${api}/${endpoint}?key=${key}&place_id=${place_id}`;
   try {
     const response = await axios.get(url);
-    return response.data.results[0];
+
+    // Return error if no results are found
+    if (response.data.status !== "OK") {
+      return console.log("GOOGLE 'geocode' ERROR: place not found");
+    }
+
+    // Extract search address for getPOI function
+    const { address_components, ...place } = response.data.results[0];
+    const types = ["country", "administrative_area_level_1", "locality"];
+    let formatted_address = [];
+
+    address_components.forEach((comp) => {
+      types.forEach((type) => {
+        if (comp.types.includes(type)) {
+          formatted_address.push(comp.short_name);
+        }
+      });
+    });
+
+    formatted_address = formatted_address.join(", ");
+
+    return { ...place, formatted_address };
   } catch (error) {
     console.log("GOOGLE 'geocode' ERROR:", error.message);
   }
@@ -32,15 +53,14 @@ const reverseGeocode = async (latlng) => {
   }
 };
 
-const getPOI = async (name, { lat, lng }) => {
+const getPOI = async (search_address, { lat, lng }) => {
   const endpoint = "place/nearbysearch/json";
 
   const type = "tourist_attraction";
   const radius = "50000";
-  const rankby = "prominence";
-  const keyword = `things to do in ${name}`;
+  const keyword = `things to do in ${encodeURI(search_address)}`;
 
-  const url = `${cors}/${api}/${endpoint}?key=${key}&location=${lat},${lng}&keyword=${keyword}&radius=${radius}&rankby=${rankby}&type=${type}`;
+  const url = `${cors}/${api}/${endpoint}?key=${key}&location=${lat},${lng}&keyword=${keyword}&radius=${radius}&type=${type}`;
 
   try {
     const response = await axios.get(url);
