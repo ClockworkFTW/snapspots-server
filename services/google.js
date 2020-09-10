@@ -58,7 +58,9 @@ const getPOI = async (search_address, { lat, lng }) => {
 
   const type = "tourist_attraction";
   const radius = "50000";
-  const keyword = `things to do in ${encodeURI(search_address)}`;
+  const keyword = search_address
+    ? `things to do in ${encodeURI(search_address)}`
+    : "photography spots";
 
   const url = `${cors}/${api}/${endpoint}?key=${key}&location=${lat},${lng}&keyword=${keyword}&radius=${radius}&type=${type}`;
 
