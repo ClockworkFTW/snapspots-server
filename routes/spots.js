@@ -161,53 +161,61 @@ router.get("/search/:place_id", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/new", async (req, res) => {
   try {
-    // Extract spot data from request body and append timestamp
-    const { custom, ...data } = req.body;
-    const { latitude, longitude } = data;
-    const dataArr = [...Object.values(data), new Date()];
+    // prettier-ignore
+    const { account_id, latitude, longitude, name, description, type, equipment, photos, custom } = req.body;
 
     const { place_id, formatted_address } = await google.reverseGeocode(
       `${latitude},${longitude}`
     );
 
-    let newSpot;
+    const created_on = new Date();
 
-    // Create a custom spot
-    if (custom) {
-      dataArr.splice(1, 0, place_id, formatted_address);
-      const { rows } = await pool.query(
-        "INSERT INTO spots (account_id, place_id, formatted_address, name, description, keywords, type, equipment, time, photos, latitude, longitude, created_on) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *",
-        dataArr
-      );
-      newSpot = rows[0];
-    }
+    // prettier-ignore
+    const insertSpotText = "INSERT INTO spots (account_id, place_id, area, name, description, type, equipment, photos, latitude, longitude, created_on, custom) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *";
+    // prettier-ignore
+    const insertSpotVals = [ account_id, place_id, formatted_address, name, description, type, equipment, photos, latitude, longitude, created_on, custom ];
 
-    // Discover a spot
-    else {
-      const { rows } = await pool.query(
-        "INSERT INTO spots (place_id, name, formatted_address, description, photos, latitude, longitude, created_on) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
-        dataArr
-      );
-      newSpot = rows[0];
-    }
+    const newSpot = await pool.query(insertSpotText, insertSpotVals);
 
-    // Get aditional properties
-    const nearby = await getSpots(place_id);
     const forecast = await weather.getForecast(latitude, longitude);
 
-    newSpot = {
-      type: "Feature",
-      geometry: {
-        type: "Point",
-        coordinates: [longitude, latitude],
-      },
-      properties: { ...newSpot, nearby, forecast, reviews: [] },
-    };
+    res.status(200).json({ ...newSpot.rows[0], forecast });
+  } catch (error) {
+    res.status(400).json({ error });
+  }
+});
 
-    res.status(200).json(newSpot);
-    res.end();
+router.post("/update", async (req, res) => {
+  try {
+    // prettier-ignore
+    const { spot_id, account_id, latitude, longitude, name, description, type, equipment, photos } = req.body;
+
+    let spot = await pool.query(
+      "SELECT account_id FROM spots WHERE spot_id = $1",
+      [spot_id]
+    );
+    spot = spot.rows[0];
+
+    if (spot.account_id !== account_id) {
+      return res.status(400).json({ error: "Access denied" });
+    }
+
+    const { place_id, formatted_address } = await google.reverseGeocode(
+      `${latitude},${longitude}`
+    );
+
+    // prettier-ignore
+    const updateSpotText = "UPDATE spots SET place_id = ($1), area = ($2), name = ($3), description = ($4), type = ($5), equipment = ($6), photos = ($7), latitude = ($8), longitude = ($9) WHERE spot_id = ($10) RETURNING *"
+    // prettier-ignore
+    const updateSpotVals = [ place_id, formatted_address, name, description, type, equipment, photos, latitude, longitude, spot_id ];
+
+    await pool.query(updateSpotText, updateSpotVals);
+
+    const updatedSpot = await getSpot(spot_id);
+
+    res.status(200).json(updatedSpot);
   } catch (error) {
     res.status(400).json({ error });
   }
