@@ -20,18 +20,9 @@ const getSpot = async (spot_id) => {
   reviews = reviews.rows;
 
   // Get forecast
-  const { latitude, longitude, ...properties } = spot;
-  const forecast = await weather.getForecast(latitude, longitude);
+  const forecast = await weather.getForecast(spot.latitude, spot.longitude);
 
-  // Return formatted spot
-  return {
-    type: "Feature",
-    geometry: {
-      type: "Point",
-      coordinates: [longitude, latitude],
-    },
-    properties: { ...properties, reviews, forecast },
-  };
+  return { ...spot, reviews, forecast };
 };
 
 const getSpots = async (place_id) => {
