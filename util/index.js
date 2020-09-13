@@ -85,7 +85,7 @@ const getSpots = async (place_id) => {
         properties: {
           place_id,
           name,
-          formatted_address,
+          area: formatted_address,
           description,
           photos,
         },
