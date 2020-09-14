@@ -74,6 +74,7 @@ const getSpots = async (place_id) => {
       // get additional properties
       let description = await wikipedia.getExtract(name);
       let photos = await flickr.getPhotos(name, location);
+      let reviews = await google.getReviews(place_id);
 
       // return formatted spot
       return {
@@ -88,6 +89,7 @@ const getSpots = async (place_id) => {
           area: formatted_address,
           description,
           photos,
+          reviews,
         },
       };
     })

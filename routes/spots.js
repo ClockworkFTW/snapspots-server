@@ -13,7 +13,15 @@ router.get("/preview", async (req, res) => {
     let spots = await pool.query(
       "SELECT * FROM spots ORDER BY created_on DESC LIMIT 10"
     );
-    spots = spots.rows;
+
+    spots = spots.rows.map((spot) => ({
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [spot.longitude, spot.latitude],
+      },
+      properties: { ...spot },
+    }));
 
     res.status(200).json(spots);
   } catch (error) {
@@ -24,6 +32,8 @@ router.get("/preview", async (req, res) => {
 router.get("/explore", async (req, res) => {
   try {
     const { zoom, cLat, cLng, neLat, neLng, swLat, swLng } = req.query;
+
+    console.log(req.query);
 
     const coords = [];
 
@@ -71,10 +81,11 @@ router.get("/explore", async (req, res) => {
 
     // Convert discovered spots to geoJSON format
     let discoveredSpots = await Promise.all(
-      POI.map(async ({ place_id, name, geometry: { location } }) => {
+      POI.map(async ({ place_id, name, vicinity, geometry: { location } }) => {
         // get additional properties
         let description = await wikipedia.getExtract(name);
         let photos = await flickr.getPhotos(name, location);
+        let reviews = await google.getReviews(place_id);
 
         // return formatted spot
         return {
@@ -86,16 +97,13 @@ router.get("/explore", async (req, res) => {
           properties: {
             place_id,
             name,
-            formatted_address: "placeholder",
+            area: vicinity,
             description,
             photos,
+            reviews,
           },
         };
       })
-    );
-
-    discoveredSpots = discoveredSpots.filter(
-      (spot) => spot.properties.photos.length !== 0
     );
 
     const bounds = [neLat, swLat, neLng, swLng];
@@ -109,7 +117,7 @@ router.get("/explore", async (req, res) => {
     customSpots = await Promise.all(
       customSpots.rows.map(async (spot) => {
         // Destructure properties
-        const { lat, lng, ...properties } = spot;
+        const { latitude, longitude, ...properties } = spot;
 
         // Join reviews
         let reviews = await pool.query(
@@ -123,12 +131,28 @@ router.get("/explore", async (req, res) => {
           type: "Feature",
           geometry: {
             type: "Point",
-            coordinates: [lng, lat],
+            coordinates: [longitude, latitude],
           },
           properties: { ...properties, reviews },
         };
       })
     );
+
+    // Filter out discovered spots without photos and duplicate custom spots
+    discoveredSpots = discoveredSpots.filter((discoveredSpot) => {
+      const hasPhotos = discoveredSpot.properties.photos.length !== 0;
+      let duplicate = false;
+
+      customSpots.forEach((customSpot) => {
+        if (
+          discoveredSpot.properties.place_id === customSpot.properties.place_id
+        ) {
+          duplicate = true;
+        }
+      });
+
+      return hasPhotos && !duplicate ? true : false;
+    });
 
     const spots = {
       coords: [cLng, cLat],

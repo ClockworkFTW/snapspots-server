@@ -16,13 +16,17 @@ const getPhotos = async (name, { lat, lng }) => {
       `${baseURL}?method=${method}&api_key=${api_key}&text=${text}&lat=${lat}&lon=${lng}&sort=${sort}&per_page=${per_page}&${format}`
     );
 
+    if (response.data.stat !== "ok") {
+      return [];
+    }
+
     return response.data.photos.photo.map((photo) => {
       const src = `https://farm${photo.farm}.staticflickr.com/${photo.server}/${photo.id}_${photo.secret}_b.jpg`;
       return src;
     });
   } catch (error) {
     console.log("FLICKR 'get photos' ERROR:", error.message);
-    return null;
+    return [];
   }
 };
 
@@ -36,6 +40,7 @@ const getInfo = async (photo_id) => {
     return response.data.photo;
   } catch (error) {
     console.log("FLICKR 'get info' ERROR:", error.message);
+    return null;
   }
 };
 
