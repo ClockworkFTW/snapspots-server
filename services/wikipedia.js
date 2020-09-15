@@ -16,7 +16,7 @@ const getExtract = async (name) => {
 
     return result.data.type === "standard" ? result.data.extract : null;
   } catch (error) {
-    console.log("WIKIPEDIA 'get extract' ERROR:", error.message);
+    // console.log("WIKIPEDIA 'get extract' ERROR:", error.message);
     return null;
   }
 };

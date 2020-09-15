@@ -31,23 +31,24 @@ router.get("/preview", async (req, res) => {
 
 router.get("/explore", async (req, res) => {
   try {
-    const { zoom, cLat, cLng, neLat, neLng, swLat, swLng } = req.query;
-
-    console.log(req.query);
+    const { cLat, cLng, neLat, neLng, swLat, swLng } = req.query;
 
     const coords = [];
 
+    const metersPerDegLat = 110574.2727;
+    const metersPerDegLng = (lat) =>
+      Math.cos((Math.PI / 180) * lat) * metersPerDegLat;
+
     // If the map is zoomed in too far only include the center coordinates
-    if (zoom > 12) {
+    if (
+      (neLat - swLat) * metersPerDegLat <= 100000 ||
+      (neLng - swLng) * metersPerDegLng(cLat) <= 100000
+    ) {
       coords.push([cLat, cLng]);
     }
 
-    // Otherwise, search in 10,000 square kilometer increments until the viewport is complete
+    // Otherwise, search in 10,000 square kilometer increments until the viewport is filled
     else {
-      const metersPerDegLat = 110574.2727;
-      const metersPerDegLng = (lat) =>
-        Math.cos((Math.PI / 180) * lat) * metersPerDegLat;
-
       let curLat = neLat - 50000 / metersPerDegLat;
       let curLng = neLng - 50000 / metersPerDegLng(neLat);
 
@@ -63,15 +64,14 @@ router.get("/explore", async (req, res) => {
       }
     }
 
-    // Get POI's withing each area
-    // ADD DYNAMIC RADIUS
+    // Get POI's withing each coordinate area
     let POI = await Promise.all(
       coords.map((coord) => {
         return google.getPOI(null, { lat: coord[0], lng: coord[1] });
       })
     );
 
-    // Filter places outside viewbox
+    // Filter places outside the viewport
     POI = POI.flat().filter((place) => {
       const { lat, lng } = place.geometry.location;
       const withinLat = lat < neLat && lat > swLat;
