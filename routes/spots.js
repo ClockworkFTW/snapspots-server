@@ -175,6 +175,16 @@ router.get("/:spot_id", async (req, res) => {
   }
 });
 
+router.get("/photos/:spot_id", async (req, res) => {
+  try {
+    const spot = await getSpot(req.params.spot_id);
+
+    res.status(200).json(spot);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 router.get("/search/:place_id", async (req, res) => {
   try {
     const spots = await getSpots(req.params.place_id);
@@ -201,11 +211,20 @@ router.post("/new", async (req, res) => {
     // prettier-ignore
     const insertSpotVals = [ account_id, place_id, formatted_address, name, description, type, equipment, photos, latitude, longitude, created_on, custom ]
 
-    const newSpot = await pool.query(insertSpotText, insertSpotVals);
+    let newSpot = await pool.query(insertSpotText, insertSpotVals);
+    newSpot = newSpot.rows[0];
+    delete newSpot.account_id;
+
+    // Get account
+    let account = await pool.query(
+      "SELECT account_id, username FROM accounts WHERE account_id = $1",
+      [account_id]
+    );
+    account = account.rows[0];
 
     const forecast = await weather.getForecast(latitude, longitude);
 
-    res.status(200).json({ ...newSpot.rows[0], reviews: [], forecast });
+    res.status(200).json({ ...newSpot, account, reviews: [], forecast });
   } catch (error) {
     res.status(400).json({ error });
   }

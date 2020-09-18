@@ -12,6 +12,15 @@ const getSpot = async (spot_id) => {
   ]);
   spot = spot.rows[0];
 
+  const { account_id, ...properties } = spot;
+
+  // Get account
+  let account = await pool.query(
+    "SELECT account_id, username FROM accounts WHERE account_id = $1",
+    [account_id]
+  );
+  account = account.rows[0];
+
   // Join reviews
   let reviews = await pool.query(
     "SELECT accounts.account_id, accounts.username, reviews.review_id, reviews.rating, reviews.comment, reviews.visited_on FROM accounts INNER JOIN reviews ON accounts.account_id = reviews.account_id WHERE reviews.spot_id = $1",
@@ -22,7 +31,7 @@ const getSpot = async (spot_id) => {
   // Get forecast
   const forecast = await weather.getForecast(spot.latitude, spot.longitude);
 
-  return { ...spot, reviews, forecast };
+  return { ...properties, account, reviews, forecast };
 };
 
 const getSpots = async (place_id) => {
@@ -45,6 +54,13 @@ const getSpots = async (place_id) => {
     customSpots.rows.map(async (spot) => {
       // Destructure properties
       const { lat, lng, ...properties } = spot;
+
+      // Get account
+      let account = await pool.query(
+        "SELECT account_id, username FROM accounts WHERE account_id = $1",
+        [spot.account_id]
+      );
+      account = account.rows[0];
 
       // Join reviews
       let reviews = await pool.query(

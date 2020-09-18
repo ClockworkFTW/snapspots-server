@@ -11,6 +11,9 @@ app.use(cors());
 const users = require("./routes/users");
 app.use("/users", users);
 
+const profiles = require("./routes/profile");
+app.use("/profile", profiles);
+
 const spots = require("./routes/spots");
 app.use("/spots", spots);
 
