@@ -2,6 +2,8 @@ const router = require("express").Router();
 
 const pool = require("../models/pool");
 
+const { validateToken } = require("../middleware");
+
 const { getSpot, getSpots } = require("../util");
 const google = require("../services/google");
 const flickr = require("../services/flickr");
@@ -195,7 +197,7 @@ router.get("/search/:place_id", async (req, res) => {
   }
 });
 
-router.post("/new", async (req, res) => {
+router.post("/new", validateToken, async (req, res) => {
   try {
     // prettier-ignore
     const { account_id, latitude, longitude, name, description, type, equipment, photos, custom } = req.body;
@@ -230,10 +232,10 @@ router.post("/new", async (req, res) => {
   }
 });
 
-router.post("/update", async (req, res) => {
+router.post("/update", validateToken, async (req, res) => {
   try {
     // prettier-ignore
-    const { spot_id, account_id, latitude, longitude, name, description, type, equipment, photos } = req.body;
+    const { spot_id, account_id, latitude, longitude, name, description, type, equipment, photos, custom } = req.body;
 
     let spot = await pool.query(
       "SELECT account_id FROM spots WHERE spot_id = $1",
@@ -241,7 +243,7 @@ router.post("/update", async (req, res) => {
     );
     spot = spot.rows[0];
 
-    if (spot.account_id !== account_id) {
+    if (custom && spot.account_id !== account_id) {
       return res.status(400).json({ error: "Access denied" });
     }
 
@@ -264,7 +266,7 @@ router.post("/update", async (req, res) => {
   }
 });
 
-router.post("/review", async (req, res) => {
+router.post("/review", validateToken, async (req, res) => {
   try {
     // create array from request body and append timestamp
     let review = [...Object.values(req.body), new Date()];
