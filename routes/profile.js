@@ -1,6 +1,6 @@
 const router = require("express").Router();
 
-const pool = require("../models/pool");
+const pool = require("../postgres");
 
 router.get("/:account_id", async (req, res) => {
   try {

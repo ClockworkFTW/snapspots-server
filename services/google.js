@@ -1,17 +1,20 @@
 const axios = require("axios");
 
+const { setCors } = require("../util");
+
 // remove in prod
 axios.defaults.headers.common["Origin"] = "X-Requested-With";
 
-const cors = "http://localhost:8080";
-// const cors = "https://cors-anywhere.herokuapp.com";
 const api = "https://maps.googleapis.com/maps/api";
 const key = process.env.GOOGLE_API_KEY;
 
 const geocode = async (place_id) => {
   const endpoint = "geocode/json";
 
-  const url = `${cors}/${api}/${endpoint}?key=${key}&place_id=${place_id}`;
+  const url = `${setCors(api)}/${endpoint}?key=${key}&place_id=${place_id}`;
+
+  console.log(url);
+
   try {
     const response = await axios.get(url);
 
@@ -44,12 +47,13 @@ const geocode = async (place_id) => {
 const reverseGeocode = async (latlng) => {
   const endpoint = "geocode/json";
 
-  const url = `${cors}/${api}/${endpoint}?key=${key}&latlng=${latlng}`;
+  const url = `${setCors(api)}/${api}/${endpoint}?key=${key}&latlng=${latlng}`;
+
   try {
     const response = await axios.get(url);
     return response.data.results[0];
   } catch (error) {
-    console.log("GOOGLE 'geocode' ERROR:", error.message);
+    console.log("GOOGLE 'reverse geocode' ERROR:", error.message);
   }
 };
 
@@ -62,7 +66,8 @@ const getPOI = async (search_address, { lat, lng }) => {
     ? `things to do in ${encodeURI(search_address)}`
     : "photography spots";
 
-  const url = `${cors}/${api}/${endpoint}?key=${key}&location=${lat},${lng}&keyword=${keyword}&radius=${radius}&type=${type}`;
+  // prettier-ignore
+  const url = `${setCors(api)}/${endpoint}?key=${key}&location=${lat},${lng}&keyword=${keyword}&radius=${radius}&type=${type}`;
 
   try {
     const response = await axios.get(url);
@@ -75,7 +80,8 @@ const getPOI = async (search_address, { lat, lng }) => {
 const getReviews = async (place_id) => {
   const endpoint = "place/details/json";
 
-  const url = `${cors}/${api}/${endpoint}?key=${key}&place_id=${place_id}&fields=reviews`;
+  // prettier-ignore
+  const url = `${setCors(api)}/${endpoint}?key=${key}&place_id=${place_id}&fields=reviews`;
 
   try {
     const response = await axios.get(url);

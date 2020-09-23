@@ -9,13 +9,13 @@ app.use(bodyParser.json());
 app.use(cors());
 
 const users = require("./routes/users");
-app.use("/users", users);
+app.use("/api/users", users);
 
 const profiles = require("./routes/profile");
-app.use("/profile", profiles);
+app.use("/api/profile", profiles);
 
 const spots = require("./routes/spots");
-app.use("/spots", spots);
+app.use("/api/spots", spots);
 
 app.listen(port, () =>
   console.log(`Server listening at http://localhost:${port}`)
